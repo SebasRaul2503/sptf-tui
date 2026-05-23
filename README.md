@@ -142,7 +142,7 @@ Anything in the file can be overridden by environment variables prefixed
 | 4         | Real-time sync (signal-driven updates) | ✅ done |
 | 5         | Album cover rendering + cache          | ✅ done |
 | 6         | Themes & keybinding configuration      | ✅ done |
-| 7         | Test hardening + mock player backend   | ⏳ |
+| 7         | Test hardening + mock player backend   | ✅ done |
 | 8         | UX polish + documentation              | ⏳ |
 
 Long-term ideas (not committed):

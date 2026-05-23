@@ -4,6 +4,8 @@
 //! album-art fetching, …). Concrete implementations live in
 //! [`crate::infrastructure`]; tests can supply in-memory fakes.
 
+pub mod mock;
 pub mod player;
 
+pub use mock::{MockCall, MockPlayerService};
 pub use player::PlayerService;

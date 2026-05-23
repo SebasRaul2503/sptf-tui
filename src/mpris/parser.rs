@@ -177,4 +177,50 @@ mod tests {
         assert_eq!(parse_volume(2.0), 100);
         assert_eq!(parse_volume(-0.5), 0);
     }
+
+    #[test]
+    fn empty_metadata_yields_default_track() {
+        let track = parse_metadata(&HashMap::new());
+        assert!(track.title.is_empty());
+        assert!(track.artists.is_empty());
+        assert!(track.album.is_none());
+        assert!(track.length.is_none());
+    }
+
+    #[test]
+    fn artist_array_skips_empty_strings() {
+        let mut map = HashMap::new();
+        map.insert("xesam:title".into(), str_val("t"));
+        map.insert("xesam:artist".into(), arr_val(&["", "Alice", ""]));
+        let track = parse_metadata(&map);
+        assert_eq!(track.artists_joined(), "Alice");
+    }
+
+    #[test]
+    fn track_id_accepts_object_path_or_string() {
+        let mut map = HashMap::new();
+        map.insert("xesam:title".into(), str_val("t"));
+        let path = zbus::zvariant::ObjectPath::try_from("/foo/bar").unwrap();
+        let v = OwnedValue::try_from(Value::ObjectPath(path)).unwrap();
+        map.insert("mpris:trackid".into(), v);
+        let track = parse_metadata(&map);
+        assert_eq!(track.track_id.as_deref(), Some("/foo/bar"));
+    }
+
+    #[test]
+    fn length_accepts_u64_too() {
+        let mut map = HashMap::new();
+        map.insert("xesam:title".into(), str_val("t"));
+        map.insert("mpris:length".into(), val(180_000_000u64));
+        let track = parse_metadata(&map);
+        assert_eq!(track.length, Some(Duration::from_secs(180)));
+    }
+
+    #[test]
+    fn negative_length_is_ignored() {
+        let mut map = HashMap::new();
+        map.insert("xesam:title".into(), str_val("t"));
+        map.insert("mpris:length".into(), val(-1i64));
+        assert!(parse_metadata(&map).length.is_none());
+    }
 }
