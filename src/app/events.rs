@@ -15,7 +15,11 @@ use tokio::task::JoinHandle;
 use tokio::time;
 use tracing::debug;
 
-use crate::core::error::PlayerError;
+use std::sync::Arc;
+
+use image::DynamicImage;
+
+use crate::core::error::{ArtError, PlayerError};
 use crate::domain::PlayerSnapshot;
 
 /// All events the app loop can react to.
@@ -29,6 +33,10 @@ pub enum AppEvent {
     PlayerSnapshot(Box<PlayerSnapshot>),
     /// MPRIS layer reported a failure; surfaced to the user.
     PlayerError(PlayerError),
+    /// Album art was successfully fetched + decoded for the given URL.
+    ArtLoaded { url: String, image: Arc<DynamicImage> },
+    /// Album-art fetch failed for the given URL.
+    ArtFailed { url: String, error: ArtError },
     /// Generic input pump error.
     InputError(String),
 }

@@ -40,14 +40,20 @@ Shipped:
 - Structured tracing logs in `$XDG_STATE_HOME/sptf-tui/logs/` (TUI-safe).
 - Keyboard bindings dispatched through a typed `Action` space (testable).
 - Built-in `spotify-dark` theme.
+- **MPRIS/DBus integration** with zbus 5: player discovery, metadata parsing,
+  playback control, signal-driven real-time updates (`PropertiesChanged` +
+  `NameOwnerChanged`).
+- **Interactive TUI**: now-playing pane, status icon, progress bar, volume
+  slider, footer status banner, keybinding cheatsheet.
+- **Album cover rendering** via `ratatui-image` with automatic protocol
+  selection (Kitty, iTerm2, Sixel, halfblock fallback), async fetch +
+  decode + in-memory cache.
 
 Coming next:
 
-- **MPRIS/DBus integration**: player discovery, metadata, playback control.
-- **Real-time UI**: progress bar, controls, volume slider.
-- **Album cover rendering**: kitty graphics protocol with sixel/unicode fallback.
-- **Configurable keybindings & themes**.
-- **Mock player backend** for headless tests.
+- **Configurable keybindings & themes** loaded from disk.
+- **Mock player backend** for headless tests + integration-test hardening.
+- **UX polish**: bounded LRU disk cache, loading states, smarter resize.
 
 ## Installation
 
@@ -119,10 +125,10 @@ Anything in the file can be overridden by environment variables prefixed
 | Iteration | Theme                                  | Status |
 | --------- | -------------------------------------- | ------ |
 | 1         | Bootstrap: cargo, layout, event loop, config, logging | ✅ done |
-| 2         | MPRIS player discovery + metadata      | ⏳ |
-| 3         | Interactive TUI: layout, controls, progress | ⏳ |
-| 4         | Real-time sync (event-driven updates)  | ⏳ |
-| 5         | Album cover rendering + cache          | ⏳ |
+| 2         | MPRIS player discovery + metadata      | ✅ done |
+| 3         | Interactive TUI: layout, controls, progress | ✅ done |
+| 4         | Real-time sync (signal-driven updates) | ✅ done |
+| 5         | Album cover rendering + cache          | ✅ done |
 | 6         | Themes & keybinding configuration      | ⏳ |
 | 7         | Test hardening + mock player backend   | ⏳ |
 | 8         | UX polish + documentation              | ⏳ |

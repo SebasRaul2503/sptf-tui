@@ -5,6 +5,7 @@
 //! They are intentionally stateless: the caller decides where to place them
 //! and the [`crate::state::AppState`] is the single source of truth.
 
+pub mod album_art;
 pub mod banner;
 pub mod controls;
 pub mod help_bar;
