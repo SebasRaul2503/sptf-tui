@@ -35,22 +35,28 @@ pub trait Player {
     fn stop(&self) -> zbus::Result<()>;
     fn seek(&self, offset_usec: i64) -> zbus::Result<()>;
 
-    #[zbus(property)]
+    // All readable Player properties are marked `emits_changed_signal =
+    // "false"` to bypass zbus's property cache entirely. Two reasons:
+    //
+    // 1. `Position` is *spec-forbidden* from emitting PropertiesChanged, so the
+    //    cache would otherwise be stuck at the first read.
+    //
+    // 2. For everything else, our PropertiesChanged subscriber races zbus's
+    //    internal cache-updater for the same signal. Half the time we'd read
+    //    `metadata()` *before* the cache had absorbed the new value, yielding
+    //    the *old* track on the very signal that's telling us about the new
+    //    one. Going uncached makes every read a fresh DBus call — cheap
+    //    enough given we only refresh on signals + a 500 ms position tick.
+    #[zbus(property(emits_changed_signal = "false"))]
     fn metadata(&self) -> zbus::Result<HashMap<String, OwnedValue>>;
 
-    #[zbus(property)]
+    #[zbus(property(emits_changed_signal = "false"))]
     fn playback_status(&self) -> zbus::Result<String>;
 
-    // The MPRIS spec explicitly says Position must NOT emit PropertiesChanged
-    // (it changes continuously while playing). zbus caches `#[zbus(property)]`
-    // values by default and only invalidates them on PropertiesChanged — which
-    // means without this attribute the cached Position is stuck at "the value
-    // we saw on the first read, forever". Marking it `emits_changed_signal =
-    // "false"` tells zbus to always fetch fresh.
     #[zbus(property(emits_changed_signal = "false"))]
     fn position(&self) -> zbus::Result<i64>;
 
-    #[zbus(property)]
+    #[zbus(property(emits_changed_signal = "false"))]
     fn volume(&self) -> zbus::Result<f64>;
 
     #[zbus(property)]
