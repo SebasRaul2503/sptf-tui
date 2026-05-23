@@ -36,11 +36,13 @@ pub struct App {
 impl App {
     pub fn new(settings: Settings) -> Self {
         let (tx, rx) = channel();
+        let keymap = Keymap::from_settings(&settings.keys);
+        let theme = Theme::by_name(&settings.ui.theme);
         Self {
             settings,
             state: AppState::default(),
-            keymap: Keymap::new(),
-            theme: Theme::default(),
+            keymap,
+            theme,
             picker: init_picker(),
             art_cache: Arc::new(ArtCache::new()),
             player: None,

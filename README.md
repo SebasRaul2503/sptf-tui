@@ -104,7 +104,7 @@ Looked up at `$XDG_CONFIG_HOME/sptf-tui/config.toml` (or pass `--config FILE`).
 
 ```toml
 [ui]
-theme = "default"
+theme = "spotify-dark"  # spotify-dark | gruvbox-dark | monochrome
 frame_rate = 30
 show_album_art = true
 
@@ -115,6 +115,18 @@ position_poll_ms = 500
 
 [logging]
 level = "warn"  # any tracing-subscriber EnvFilter directive
+
+# Custom keybindings extend (not replace) the defaults; ctrl-c always quits.
+[keys]
+quit          = ["q", "esc"]
+play_pause    = ["space", "p"]
+next          = ["n", ">"]
+previous      = ["b", "<"]
+volume_up     = ["+", "="]
+volume_down   = ["-", "_"]
+seek_forward  = ["right", "l"]
+seek_backward = ["left", "h"]
+redraw        = ["r"]
 ```
 
 Anything in the file can be overridden by environment variables prefixed
@@ -129,7 +141,7 @@ Anything in the file can be overridden by environment variables prefixed
 | 3         | Interactive TUI: layout, controls, progress | ✅ done |
 | 4         | Real-time sync (signal-driven updates) | ✅ done |
 | 5         | Album cover rendering + cache          | ✅ done |
-| 6         | Themes & keybinding configuration      | ⏳ |
+| 6         | Themes & keybinding configuration      | ✅ done |
 | 7         | Test hardening + mock player backend   | ⏳ |
 | 8         | UX polish + documentation              | ⏳ |
 

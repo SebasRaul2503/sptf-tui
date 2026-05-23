@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use tracing::debug;
 
 use super::paths::Paths;
-use super::settings::{LoggingSettings, PlayerSettings, UiSettings};
+use super::settings::{KeymapSettings, LoggingSettings, PlayerSettings, UiSettings};
 
 /// Fully resolved application settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,6 +21,7 @@ pub struct Settings {
     pub ui: UiSettings,
     pub player: PlayerSettings,
     pub logging: LoggingSettings,
+    pub keys: KeymapSettings,
 
     /// Filled in by [`Settings::load`] from the runtime environment; not read
     /// from the TOML file. Kept here so downstream code can borrow it.
@@ -34,6 +35,7 @@ impl Default for Settings {
             ui: UiSettings::default(),
             player: PlayerSettings::default(),
             logging: LoggingSettings::default(),
+            keys: KeymapSettings::default(),
             paths: Paths {
                 config_file: PathBuf::new(),
                 config_dir: PathBuf::new(),
@@ -86,7 +88,7 @@ mod tests {
     #[test]
     fn defaults_are_sane() {
         let settings = Settings::default();
-        assert_eq!(settings.ui.theme, "default");
+        assert_eq!(settings.ui.theme, "spotify-dark");
         assert_eq!(settings.ui.frame_rate, 30);
         assert!(settings.ui.show_album_art);
         assert_eq!(settings.player.preferred.as_deref(), Some("spotify"));

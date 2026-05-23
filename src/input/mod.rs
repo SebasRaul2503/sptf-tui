@@ -5,7 +5,9 @@
 //! key events directly to exercise dispatch logic without a terminal.
 
 pub mod action;
+pub mod key_parser;
 pub mod keymap;
 
 pub use action::Action;
+pub use key_parser::{parse as parse_key, KeyCombo};
 pub use keymap::Keymap;

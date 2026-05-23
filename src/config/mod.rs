@@ -15,4 +15,4 @@ mod settings;
 
 pub use loader::Settings;
 pub use paths::Paths;
-pub use settings::{LoggingSettings, PlayerSettings, UiSettings};
+pub use settings::{KeymapSettings, LoggingSettings, PlayerSettings, UiSettings};
