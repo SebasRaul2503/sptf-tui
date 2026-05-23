@@ -13,6 +13,7 @@
 //!   snapshots into an `AppSender`.
 
 pub mod discovery;
+mod pactl;
 pub mod parser;
 pub mod proxy;
 pub mod service;

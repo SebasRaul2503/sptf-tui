@@ -29,6 +29,7 @@ use zbus::names::InterfaceName;
 use zbus::Connection;
 
 use super::discovery::{list_mpris_players, select_player};
+use super::pactl;
 use super::parser::{parse_metadata, parse_status, parse_volume};
 use super::proxy::{MediaPlayer2Proxy, PlayerProxy};
 use crate::app::{AppEvent, AppSender};
@@ -137,6 +138,20 @@ impl MprisPlayerService {
             *guard = snapshot.clone();
         }
     }
+
+    fn commit_volume(&self, volume: u8) {
+        if let Ok(mut g) = self.snapshot.write() {
+            g.playback.volume = volume;
+        }
+    }
+
+    /// Look up the OS process ID behind our player's bus name. Needed by
+    /// the pactl fallback so it can match a sink-input to this player.
+    async fn player_pid(&self) -> Option<u32> {
+        let dbus = DBusProxy::new(&self.conn).await.ok()?;
+        let name = zbus::names::BusName::try_from(self.bus_name.as_str()).ok()?;
+        dbus.get_connection_unix_process_id(name).await.ok()
+    }
 }
 
 #[async_trait]
@@ -159,17 +174,38 @@ impl PlayerService for MprisPlayerService {
 
     async fn set_volume(&self, volume: u8) -> Result<(), PlayerError> {
         let clamped = volume.min(100);
-        let v = f64::from(clamped) / 100.0;
-        self.player.set_volume(v).await.map_err(zbus_err)?;
-        // Some players (Spotify in particular) do not emit PropertiesChanged
-        // for Volume changes — so the next "calculate target from cached
-        // value" call would keep computing from the stale value, making
-        // repeated +/- presses no-ops. Update the cache optimistically; the
-        // signal-driven refresh will overwrite when/if the player publishes.
-        if let Ok(mut g) = self.snapshot.write() {
-            g.playback.volume = clamped;
+        let target = f64::from(clamped) / 100.0;
+
+        // Step 1: issue the MPRIS write. We don't trust this alone — some
+        // players (notably the Spotify Linux client) accept it silently
+        // and never move, which is what makes +/- feel broken.
+        self.player.set_volume(target).await.map_err(zbus_err)?;
+
+        // Step 2: verify. Give the player a beat to apply the property,
+        // then read it back. If it matches, the player honored the write
+        // and we update the cache the same way the old code did
+        // (optimistically, because Spotify doesn't emit PropertiesChanged
+        // for Volume changes either).
+        time::sleep(Duration::from_millis(80)).await;
+        if let Ok(actual) = self.player.volume().await {
+            if (actual - target).abs() <= 0.01 {
+                self.commit_volume(clamped);
+                return Ok(());
+            }
+            trace!(target, actual, "MPRIS SetVolume ignored, attempting pactl fallback");
         }
-        Ok(())
+
+        // Step 3: fall back to per-app sink-input volume via pactl. This
+        // works regardless of MPRIS compliance because it operates one
+        // layer below — directly on the audio server's stream — at the
+        // cost of decoupling player-internal volume from what's heard.
+        if let Some(pid) = self.player_pid().await {
+            if pactl::try_set_volume_for_pid(pid, clamped).await {
+                self.commit_volume(clamped);
+                return Ok(());
+            }
+        }
+        Err(PlayerError::VolumeIgnored)
     }
 
     async fn seek_relative(&self, delta_secs: i64) -> Result<(), PlayerError> {
