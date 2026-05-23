@@ -125,7 +125,9 @@ mod tests {
             },
         });
         let dump = render_to_string(&mut state);
-        assert!(dump.contains("Title-Here"));
+        // Title is rendered through tui-big-text as quadrant glyphs, so the
+        // literal characters don't appear in the buffer. Artists, album,
+        // identity, time, and volume are normal text and *do* appear.
         assert!(dump.contains("ArtistA"));
         assert!(dump.contains("Album-Here"));
         assert!(dump.contains("Spotify"));

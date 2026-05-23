@@ -230,8 +230,16 @@ impl App {
                     Action::SeekBackward => player.seek_relative(-5).await,
                     Action::Quit | Action::Redraw => unreachable!("handled above"),
                 };
-                if let Err(err) = result {
-                    self.state.set_banner(format!("action failed: {err}"));
+                match result {
+                    Ok(()) => {
+                        // Push the (optimistically-updated) snapshot to the
+                        // UI immediately so the user sees the change instead
+                        // of waiting for a PropertiesChanged signal — some
+                        // players don't emit one for every property (Spotify
+                        // is famously stingy with Volume).
+                        self.handle_snapshot(player.snapshot());
+                    }
+                    Err(err) => self.state.set_banner(format!("action failed: {err}")),
                 }
             }
         }

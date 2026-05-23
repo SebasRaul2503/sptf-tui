@@ -41,7 +41,13 @@ pub trait Player {
     #[zbus(property)]
     fn playback_status(&self) -> zbus::Result<String>;
 
-    #[zbus(property)]
+    // The MPRIS spec explicitly says Position must NOT emit PropertiesChanged
+    // (it changes continuously while playing). zbus caches `#[zbus(property)]`
+    // values by default and only invalidates them on PropertiesChanged — which
+    // means without this attribute the cached Position is stuck at "the value
+    // we saw on the first read, forever". Marking it `emits_changed_signal =
+    // "false"` tells zbus to always fetch fresh.
+    #[zbus(property(emits_changed_signal = "false"))]
     fn position(&self) -> zbus::Result<i64>;
 
     #[zbus(property)]

@@ -158,8 +158,18 @@ impl PlayerService for MprisPlayerService {
     }
 
     async fn set_volume(&self, volume: u8) -> Result<(), PlayerError> {
-        let v = f64::from(volume.min(100)) / 100.0;
-        self.player.set_volume(v).await.map_err(zbus_err)
+        let clamped = volume.min(100);
+        let v = f64::from(clamped) / 100.0;
+        self.player.set_volume(v).await.map_err(zbus_err)?;
+        // Some players (Spotify in particular) do not emit PropertiesChanged
+        // for Volume changes — so the next "calculate target from cached
+        // value" call would keep computing from the stale value, making
+        // repeated +/- presses no-ops. Update the cache optimistically; the
+        // signal-driven refresh will overwrite when/if the player publishes.
+        if let Ok(mut g) = self.snapshot.write() {
+            g.playback.volume = clamped;
+        }
+        Ok(())
     }
 
     async fn seek_relative(&self, delta_secs: i64) -> Result<(), PlayerError> {

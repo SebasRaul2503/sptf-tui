@@ -30,6 +30,7 @@ zbus = { version = "5", default-features = false, features = ["tokio"] }
 # Image handling + in-terminal rendering
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 ratatui-image = { version = "5", default-features = false, features = ["crossterm"] }
+tui-big-text = "0.7"
 
 # Serialization / config
 serde = { version = "1", features = ["derive"] }
