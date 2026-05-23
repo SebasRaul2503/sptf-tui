@@ -23,6 +23,11 @@ pub enum PlayerError {
     Dbus(String),
     #[error("received malformed metadata from player: {0}")]
     InvalidMetadata(String),
+    /// MPRIS SetVolume succeeded over D-Bus but the player ignored it, and
+    /// no working fallback (e.g. pactl) was available. Notably emitted by
+    /// the Spotify Linux client, which accepts the write silently.
+    #[error("player ignored volume change (no fallback available)")]
+    VolumeIgnored,
 }
 
 /// Errors that may occur while fetching or decoding album art.
