@@ -1,6 +1,12 @@
-//! Reusable widget primitives.
+//! Reusable widgets.
 //!
-//! Iteration 1 keeps this module deliberately empty — the only "view" code
-//! currently lives in [`crate::tui::view`] and is small enough to inline.
-//! Later iterations split widgets (progress bar, album cover, controls bar)
-//! out so they can be unit-tested in isolation against a `TestBackend`.
+//! Each widget is a free function that takes a [`ratatui::Frame`], an area,
+//! the data it needs, and the current [`Theme`](crate::tui::theme::Theme).
+//! They are intentionally stateless: the caller decides where to place them
+//! and the [`crate::state::AppState`] is the single source of truth.
+
+pub mod banner;
+pub mod controls;
+pub mod help_bar;
+pub mod now_playing;
+pub mod volume;
