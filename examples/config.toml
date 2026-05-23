@@ -1,0 +1,48 @@
+# sptf-tui example configuration.
+# Drop this file at:
+#
+#   $XDG_CONFIG_HOME/sptf-tui/config.toml
+#   (defaults to ~/.config/sptf-tui/config.toml on most Linux distros)
+#
+# Or pass it explicitly with `sptf --config /path/to/config.toml`.
+#
+# Every section is optional — missing keys keep their built-in defaults.
+
+[ui]
+# One of: spotify-dark, gruvbox-dark, monochrome.
+theme = "spotify-dark"
+# Maximum redraws per second. Clamped to 1..=240.
+frame_rate = 30
+# Render album cover in supported terminals.
+show_album_art = true
+
+[player]
+# Substring match against the MPRIS bus name. `null` means "first active".
+preferred = "spotify"
+# Position-poll cadence in milliseconds. The watcher pushes
+# metadata/status/volume changes the moment they happen; this only controls
+# the heartbeat that updates the progress bar.
+position_poll_ms = 500
+
+[logging]
+# Any tracing-subscriber EnvFilter directive. SPTF_LOG env var wins over this.
+level = "warn"
+
+# Custom keybindings *extend* (not replace) the defaults.
+# Ctrl-C → Quit is always wired and cannot be overridden.
+#
+# Key syntax: (modifier-)*key
+#   modifiers: ctrl | control | alt | meta | shift
+#   named:     esc | tab | space | enter | backspace | left | right | up | down
+#              home | end | pageup | pagedown | delete | insert | f1..f24
+#   chars:     anything single-character (q, +, <, …)
+[keys]
+quit          = ["q", "esc"]
+play_pause    = ["space", "p"]
+next          = ["n", ">"]
+previous      = ["b", "<"]
+volume_up     = ["+", "="]
+volume_down   = ["-", "_"]
+seek_forward  = ["right", "l"]
+seek_backward = ["left", "h"]
+redraw        = ["r"]

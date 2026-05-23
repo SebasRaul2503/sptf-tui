@@ -1868,6 +1868,7 @@ dependencies = [
  "directories",
  "futures",
  "image",
+ "lru",
  "once_cell",
  "pretty_assertions",
  "ratatui",

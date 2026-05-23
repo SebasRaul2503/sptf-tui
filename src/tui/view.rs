@@ -15,10 +15,19 @@ use crate::widgets;
 /// this we drop the art and give the now-playing pane the full width.
 const ART_MIN_WIDTH: u16 = 60;
 const ART_PANE_WIDTH: u16 = 24;
+/// Below this we don't even try to lay out — just show a friendly hint.
+const MIN_USABLE_WIDTH: u16 = 30;
+const MIN_USABLE_HEIGHT: u16 = 10;
 
 /// Render one frame of the UI from the given state.
 pub fn draw(frame: &mut Frame<'_>, state: &mut AppState, theme: &Theme) {
     let area = frame.area();
+
+    if area.width < MIN_USABLE_WIDTH || area.height < MIN_USABLE_HEIGHT {
+        draw_too_small(frame, area, theme);
+        return;
+    }
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(1), Constraint::Length(3)])
@@ -27,6 +36,19 @@ pub fn draw(frame: &mut Frame<'_>, state: &mut AppState, theme: &Theme) {
     widgets::help_bar::render(frame, chunks[0], theme);
     draw_body(frame, chunks[1], state, theme);
     widgets::banner::render(frame, chunks[2], state, theme);
+}
+
+fn draw_too_small(frame: &mut Frame<'_>, area: Rect, theme: &Theme) {
+    use ratatui::layout::Alignment;
+    use ratatui::text::{Line, Span};
+    use ratatui::widgets::Paragraph;
+    let lines = vec![
+        Line::from(Span::styled("sptf-tui", theme.primary)),
+        Line::from(""),
+        Line::from(Span::styled("terminal too small", theme.status_warn)),
+        Line::from(Span::styled("resize me ↗", theme.muted)),
+    ];
+    frame.render_widget(Paragraph::new(lines).alignment(Alignment::Center), area);
 }
 
 fn draw_body(frame: &mut Frame<'_>, area: Rect, state: &mut AppState, theme: &Theme) {

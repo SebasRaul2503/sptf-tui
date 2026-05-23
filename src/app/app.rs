@@ -92,7 +92,9 @@ impl App {
         self.tasks.push(spawn_input_pump(self.tx.clone(), self.settings.ui.frame_rate));
         debug!(frame_rate = self.settings.ui.frame_rate, "event loop started");
 
+        // Always paint once at startup so the user sees the UI immediately.
         terminal.draw(|f| tui::view::draw(f, &mut self.state, &self.theme))?;
+        self.state.take_dirty();
 
         loop {
             tokio::select! {
@@ -114,7 +116,9 @@ impl App {
                 break;
             }
 
-            terminal.draw(|f| tui::view::draw(f, &mut self.state, &self.theme))?;
+            if self.state.take_dirty() {
+                terminal.draw(|f| tui::view::draw(f, &mut self.state, &self.theme))?;
+            }
         }
 
         Ok(())
@@ -130,6 +134,7 @@ impl App {
             }
             AppEvent::Input(CrosstermEvent::Resize(w, h)) => {
                 debug!(width = w, height = h, "resize");
+                self.state.mark_dirty();
             }
             AppEvent::Input(_) => {}
             AppEvent::PlayerSnapshot(snapshot) => self.handle_snapshot(*snapshot),
@@ -145,12 +150,14 @@ impl App {
                     self.state.art = Some(self.picker.new_resize_protocol((*image).clone()));
                     self.state.art_url = Some(url.clone());
                     self.art_cache.put(url, image);
+                    self.state.mark_dirty();
                 }
             }
             AppEvent::ArtFailed { url, error } => {
                 warn!(%url, ?error, "album-art fetch failed");
                 if self.state.current_art_url() == Some(url.as_str()) {
                     self.state.art = None;
+                    self.state.mark_dirty();
                 }
             }
             AppEvent::InputError(msg) => {
@@ -170,17 +177,16 @@ impl App {
 
         match new_url {
             None => {
-                // Track has no art — clear what we had so the UI stops showing it.
                 if self.state.art_url.is_some() {
                     self.state.art = None;
                     self.state.art_url = None;
+                    self.state.mark_dirty();
                 }
             }
             Some(url) if Some(url.as_str()) == self.state.art_url.as_deref() => {
                 // Same URL we already loaded; nothing to do.
             }
             Some(url) => {
-                // Promote a cache hit immediately, or spawn a fetch task.
                 if let Some(cached) = self.art_cache.get(&url) {
                     self.state.art = Some(self.picker.new_resize_protocol((*cached).clone()));
                     self.state.art_url = Some(url);
@@ -189,6 +195,7 @@ impl App {
                     self.state.art_url = Some(url.clone());
                     spawn_art_fetch(self.tx.clone(), url);
                 }
+                self.state.mark_dirty();
             }
         }
     }

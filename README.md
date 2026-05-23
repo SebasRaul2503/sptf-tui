@@ -4,30 +4,38 @@ A modern, keyboard-driven terminal music controller for Linux. Built on top of
 **MPRIS/DBus** so it works with any compliant player (Spotify, mpv, VLC, …),
 with first-class support for Spotify and in-terminal album art rendering.
 
-> **Status:** early development. Iteration 1 ships the bootstrap and minimal
-> event loop. The MPRIS integration, full TUI, and album-art rendering land in
-> subsequent iterations — see the [roadmap](#roadmap) below.
+> **Status:** v0.1 feature-complete. All eight iterations on the roadmap
+> have landed: MPRIS, real-time sync, album art, configurable themes &
+> keybindings, mock-player test harness, and UX polish.
 
 ---
 
 ## Screenshots
 
-<!-- Placeholder — screenshots land with iteration 3 (interactive TUI) -->
+<!-- Replace with real screenshots once the v0.1 release is tagged. -->
 
 ```
-┌ sptf-tui v0.1.0 ─────────────────────────────── Press q to quit ─┐
-│                                                                  │
-│                   ╭──────── Now Playing ────────╮                │
-│                   │                              │               │
-│                   │  No MPRIS player connected.  │               │
-│                   │                              │               │
-│                   │  Open Spotify (or any        │               │
-│                   │  MPRIS-compatible player)    │               │
-│                   │  and start playing.          │               │
-│                   ╰──────────────────────────────╯               │
-│                                                                  │
-│ ready · iteration 1 (bootstrap)                                  │
-└──────────────────────────────────────────────────────────────────┘
+╭ sptf-tui v0.1.0 ───────── space play/pause · n next · b prev · q quit ─╮
+│                                                                        │
+│ ╭─ Cover ─────────╮ ╭─ Now Playing ────────────────────────────────╮  │
+│ │                 │ │                                                │  │
+│ │   ▓▓▓▓▓▓▓▓▓▓    │ │           Sunflower, Vol. 6                   │  │
+│ │   ▓▓░░░░░░▓▓    │ │           Harry Styles                        │  │
+│ │   ▓▓░░██░░▓▓    │ │           Fine Line                           │  │
+│ │   ▓▓░░░░░░▓▓    │ │                                                │  │
+│ │   ▓▓▓▓▓▓▓▓▓▓    │ │                                                │  │
+│ ╰─────────────────╯ ╰────────────────────────────────────────────────╯ │
+│ ╭─ Controls ──────────────────────────────────────────────────────────╮│
+│ │ ▶  Playing  ·  Spotify                                  1:24 / 3:45 ││
+│ │ ████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  38%   ││
+│ ╰─────────────────────────────────────────────────────────────────────╯│
+│ ╭─ Volume ────────────────────────────────────────────────────────────╮│
+│ │ Vol  ████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  80% ││
+│ ╰─────────────────────────────────────────────────────────────────────╯│
+│ ╭─────────────────────────────────────────────────────────────────────╮│
+│ │ connected to Spotify                                                ││
+│ ╰─────────────────────────────────────────────────────────────────────╯│
+╰────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## Features
@@ -143,7 +151,7 @@ Anything in the file can be overridden by environment variables prefixed
 | 5         | Album cover rendering + cache          | ✅ done |
 | 6         | Themes & keybinding configuration      | ✅ done |
 | 7         | Test hardening + mock player backend   | ✅ done |
-| 8         | UX polish + documentation              | ⏳ |
+| 8         | UX polish + documentation              | ✅ done |
 
 Long-term ideas (not committed):
 
