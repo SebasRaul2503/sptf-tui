@@ -7,6 +7,7 @@
 
 pub mod album_art;
 pub mod banner;
+pub mod big_title;
 pub mod controls;
 pub mod help_bar;
 pub mod now_playing;
