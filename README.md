@@ -1,4 +1,4 @@
-https://github.com/SebasRaul2503/sptf-tui# sptf-tui
+# sptf-tui
 
 A modern, keyboard-driven terminal music controller for Linux. Built on top of
 **MPRIS/DBus** so it works with any compliant player (Spotify, mpv, VLC, …),
@@ -87,7 +87,7 @@ Looking forward (not committed):
 Currently from source — package distribution comes once the feature set is stable.
 
 ```bash
-git clone https://github.com/sebastiancastillo/sptf-tui
+git clone https://github.com/SebasRaul2503/sptf-tui
 cd sptf-tui
 cargo install --path .
 sptf

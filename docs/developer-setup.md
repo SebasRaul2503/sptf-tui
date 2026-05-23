@@ -26,7 +26,7 @@ rustup default stable
 ## Building
 
 ```bash
-git clone https://github.com/sebastiancastillo/sptf-tui
+git clone https://github.com/SebasRaul2503/sptf-tui
 cd sptf-tui
 cargo build
 cargo run
