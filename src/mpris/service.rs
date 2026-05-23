@@ -2,20 +2,30 @@
 //!
 //! The service owns the DBus connection and the per-player proxies. It keeps
 //! the most recently observed [`PlayerSnapshot`] behind an `RwLock` so the
-//! UI's `snapshot()` call is always cheap and infallible. A separate watcher
-//! task ([`spawn_watcher`]) periodically refreshes the cache and pushes each
-//! new snapshot onto the app's event channel.
+//! UI's `snapshot()` call is always cheap and infallible.
 //!
-//! Iteration 4 will replace the polling watcher with DBus-signal-driven
-//! updates; the service API stays the same.
+//! [`spawn_realtime_watcher`] subscribes to:
+//!
+//! - `org.freedesktop.DBus.Properties.PropertiesChanged` on the player path,
+//!   to receive metadata / status / volume changes the *moment* they happen.
+//! - `org.freedesktop.DBus.NameOwnerChanged` filtered to the chosen bus name,
+//!   so we surface a clean disconnect instead of stale data.
+//! - A low-rate position poll (configurable, default 500 ms) because MPRIS
+//!   does not push position updates between `Seeked` signals.
+//!
+//! Errors during the watcher's lifetime are pushed on the app event channel
+//! and the watcher exits; iteration-8 polish handles automatic reconnect.
 
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use futures::StreamExt;
 use tokio::task::JoinHandle;
 use tokio::time;
-use tracing::{debug, warn};
+use tracing::{debug, trace, warn};
+use zbus::fdo::{DBusProxy, PropertiesProxy};
+use zbus::names::InterfaceName;
 use zbus::Connection;
 
 use super::discovery::{list_mpris_players, select_player};
@@ -26,8 +36,12 @@ use crate::core::error::PlayerError;
 use crate::domain::{PlaybackState, PlayerSnapshot};
 use crate::services::PlayerService;
 
+const MPRIS_PATH: &str = "/org/mpris/MediaPlayer2";
+const PLAYER_IFACE: &str = "org.mpris.MediaPlayer2.Player";
+
 pub struct MprisPlayerService {
     bus_name: String,
+    conn: Connection,
     player: PlayerProxy<'static>,
     media: MediaPlayer2Proxy<'static>,
     snapshot: RwLock<PlayerSnapshot>,
@@ -59,6 +73,7 @@ impl MprisPlayerService {
 
         let service = Arc::new(Self {
             bus_name: chosen,
+            conn,
             player,
             media,
             snapshot: RwLock::new(PlayerSnapshot::default()),
@@ -72,9 +87,9 @@ impl MprisPlayerService {
         let metadata = self.player.metadata().await.map_err(zbus_err)?;
         let status_raw = self.player.playback_status().await.map_err(zbus_err)?;
 
-        // These properties are *allowed* to fail (the spec marks them optional
-        // and some players, including Spotify, sporadically return errors).
-        // Treat any read failure as "value not available".
+        // The next three are optional in the MPRIS spec and several players
+        // (notably Spotify) sporadically error on them. Read-failure is mapped
+        // to a sane default rather than aborting the whole refresh.
         let position = self.player.position().await.unwrap_or(0).max(0);
         let volume = self.player.volume().await.unwrap_or(1.0);
         let identity = self.media.identity().await.ok();
@@ -91,15 +106,36 @@ impl MprisPlayerService {
             },
         };
 
+        self.store_snapshot(&snapshot);
+        Ok(snapshot)
+    }
+
+    /// Cheap refresh that only re-reads `Position`. Used by the position
+    /// poller — saves three DBus round-trips per tick.
+    pub async fn refresh_position(&self) -> Result<PlayerSnapshot, PlayerError> {
+        let position = self.player.position().await.map_err(zbus_err)?.max(0);
+        let new_position = Duration::from_micros(u64::try_from(position).unwrap_or(0));
+
+        let mut snapshot = self.snapshot.read().map(|g| g.clone()).unwrap_or_default();
+        snapshot.playback.position = new_position;
         if let Ok(mut guard) = self.snapshot.write() {
-            *guard = snapshot.clone();
+            guard.playback.position = new_position;
         }
         Ok(snapshot)
     }
 
-    /// Bus name the service is currently bound to.
     pub fn bus_name(&self) -> &str {
         &self.bus_name
+    }
+
+    pub fn connection(&self) -> &Connection {
+        &self.conn
+    }
+
+    fn store_snapshot(&self, snapshot: &PlayerSnapshot) {
+        if let Ok(mut guard) = self.snapshot.write() {
+            *guard = snapshot.clone();
+        }
     }
 }
 
@@ -132,34 +168,115 @@ impl PlayerService for MprisPlayerService {
     }
 }
 
-/// Spawn a task that periodically refreshes `service` and posts the result on
-/// `tx`. Stops on receiver shutdown or on a non-recoverable DBus error.
-pub fn spawn_watcher(
+/// Signal-driven watcher: PropertiesChanged + NameOwnerChanged + a
+/// low-rate position poll. Replaces the iteration-2 polling loop.
+pub fn spawn_realtime_watcher(
     service: Arc<MprisPlayerService>,
     tx: AppSender,
-    poll_interval: Duration,
+    position_poll: Duration,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
-        let mut ticker = time::interval(poll_interval.max(Duration::from_millis(100)));
+        let conn = service.connection().clone();
+
+        let props_proxy = match build_properties_proxy(&conn, service.bus_name()).await {
+            Ok(p) => p,
+            Err(err) => {
+                let _ = tx.send(AppEvent::PlayerError(err)).await;
+                return;
+            }
+        };
+
+        let mut props_stream = match props_proxy.receive_properties_changed().await {
+            Ok(s) => s,
+            Err(err) => {
+                let _ = tx.send(AppEvent::PlayerError(zbus_err(err))).await;
+                return;
+            }
+        };
+
+        let dbus = match DBusProxy::new(&conn).await {
+            Ok(d) => d,
+            Err(err) => {
+                let _ = tx.send(AppEvent::PlayerError(zbus_err(err))).await;
+                return;
+            }
+        };
+        let mut owner_stream = match dbus.receive_name_owner_changed().await {
+            Ok(s) => s,
+            Err(err) => {
+                let _ = tx.send(AppEvent::PlayerError(zbus_err(err))).await;
+                return;
+            }
+        };
+
+        let player_iface = InterfaceName::try_from(PLAYER_IFACE).expect("valid interface name");
+        let mut ticker = time::interval(position_poll.max(Duration::from_millis(100)));
         ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
 
+        debug!(bus = %service.bus_name(), "MPRIS realtime watcher started");
+
         loop {
-            ticker.tick().await;
-            match service.refresh().await {
-                Ok(snapshot) => {
-                    if tx.send(AppEvent::PlayerSnapshot(Box::new(snapshot))).await.is_err() {
+            tokio::select! {
+                Some(signal) = props_stream.next() => {
+                    let Ok(args) = signal.args() else { continue };
+                    if args.interface_name != player_iface {
+                        continue;
+                    }
+                    trace!("PropertiesChanged on Player interface");
+                    match service.refresh().await {
+                        Ok(snapshot) => {
+                            if tx.send(AppEvent::PlayerSnapshot(Box::new(snapshot))).await.is_err() {
+                                break;
+                            }
+                        }
+                        Err(err) => {
+                            warn!(?err, "refresh after PropertiesChanged failed");
+                            let _ = tx.send(AppEvent::PlayerError(err)).await;
+                            break;
+                        }
+                    }
+                }
+                Some(signal) = owner_stream.next() => {
+                    let Ok(args) = signal.args() else { continue };
+                    if args.name.as_str() == service.bus_name() && args.new_owner.is_none() {
+                        debug!(bus = %service.bus_name(), "player lost name ownership");
+                        let _ = tx.send(AppEvent::PlayerError(PlayerError::PlayerDisconnected)).await;
                         break;
                     }
                 }
-                Err(err) => {
-                    warn!(?err, "MPRIS refresh failed");
-                    let _ = tx.send(AppEvent::PlayerError(err)).await;
-                    break;
+                _ = ticker.tick() => {
+                    match service.refresh_position().await {
+                        Ok(snapshot) => {
+                            if tx.send(AppEvent::PlayerSnapshot(Box::new(snapshot))).await.is_err() {
+                                break;
+                            }
+                        }
+                        Err(err) => {
+                            warn!(?err, "position refresh failed");
+                            let _ = tx.send(AppEvent::PlayerError(err)).await;
+                            break;
+                        }
+                    }
                 }
+                else => break,
             }
         }
-        debug!("MPRIS watcher exiting");
+        debug!("MPRIS realtime watcher exiting");
     })
+}
+
+async fn build_properties_proxy(
+    conn: &Connection,
+    bus_name: &str,
+) -> Result<PropertiesProxy<'static>, PlayerError> {
+    PropertiesProxy::builder(conn)
+        .destination(bus_name.to_string())
+        .map_err(zbus_err)?
+        .path(MPRIS_PATH)
+        .map_err(zbus_err)?
+        .build()
+        .await
+        .map_err(zbus_err)
 }
 
 fn zbus_err<E: std::fmt::Display>(err: E) -> PlayerError {

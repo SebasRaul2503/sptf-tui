@@ -17,4 +17,4 @@ pub mod parser;
 pub mod proxy;
 pub mod service;
 
-pub use service::{spawn_watcher, MprisPlayerService};
+pub use service::{spawn_realtime_watcher, MprisPlayerService};

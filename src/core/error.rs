@@ -15,6 +15,8 @@ pub enum PlayerError {
     NoPlayerAvailable,
     #[error("requested player {0:?} was not found")]
     PlayerNotFound(String),
+    #[error("the connected player disconnected from DBus")]
+    PlayerDisconnected,
     #[error("DBus is not available on this session")]
     DbusUnavailable,
     #[error("DBus call failed: {0}")]

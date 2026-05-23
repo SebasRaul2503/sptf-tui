@@ -13,7 +13,7 @@ use super::events::{channel, spawn_input_pump, AppEvent, AppReceiver, AppSender}
 use crate::config::Settings;
 use crate::core::error::PlayerError;
 use crate::input::{Action, Keymap};
-use crate::mpris::{spawn_watcher, MprisPlayerService};
+use crate::mpris::{spawn_realtime_watcher, MprisPlayerService};
 use crate::services::PlayerService;
 use crate::state::AppState;
 use crate::tui::{self, theme::Theme};
@@ -67,7 +67,8 @@ impl App {
                 info!(bus = %service.bus_name(), "connected to MPRIS player");
                 self.state.set_player(service.snapshot());
                 let poll = Duration::from_millis(self.settings.player.position_poll_ms);
-                self.tasks.push(spawn_watcher(service.clone(), self.tx.clone(), poll));
+                self.tasks
+                    .push(spawn_realtime_watcher(service.clone(), self.tx.clone(), poll));
                 self.player = Some(service);
             }
             Err(PlayerError::NoPlayerAvailable) => {
@@ -141,7 +142,13 @@ impl App {
     async fn dispatch(&mut self, action: Action) {
         match action {
             Action::Quit => self.state.quit(),
-            Action::Redraw => self.state.clear_banner(),
+            Action::Redraw => {
+                // 'r' doubles as a reconnect hint when we're disconnected.
+                self.state.clear_banner();
+                if self.player.is_none() {
+                    self.connect_player().await;
+                }
+            }
             other => {
                 let Some(player) = self.player.clone() else {
                     self.state.set_banner("no player connected");
