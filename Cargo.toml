@@ -34,6 +34,7 @@ ratatui-image = { version = "5", default-features = false, features = ["crosster
 # tui-big-text but it only consults BASIC_FONTS, so Spanish diacritics +
 # hiragana fell through (see src/widgets/big_title.rs).
 font8x8 = "0.3"
+unicode-width = "0.2"
 
 # Serialization / config
 serde = { version = "1", features = ["derive"] }

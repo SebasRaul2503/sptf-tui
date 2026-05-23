@@ -1,14 +1,16 @@
 //! Track-info pane: title (rendered large), artist(s), album.
 //!
 //! The title is rendered through [`big_title::BigTitle`](super::big_title),
-//! which packs 8×8 bitmap glyphs into 4×4 terminal cells using Unicode
-//! quadrant blocks. We use big rendering only when:
+//! which gives every character a uniform 4-cell column. Characters that
+//! have an 8×8 bitmap glyph (ASCII, Latin-1 diacritics, hiragana) are
+//! packed into 4×4 quadrant blocks; everything else (kanji, katakana,
+//! emoji, …) is dropped into the middle of its 4×4 slot at the terminal's
+//! native size, so mixed-script titles like "君 feat. ARTIST" stay
+//! aligned and readable.
 //!
-//! - the pane has room (≥ `big_w + 2` cells wide, ≥ 8 cells tall), and
-//! - every character in the title has a glyph in the supported font sets
-//!   (ASCII + Latin-1 diacritics + hiragana). Anything else (kanji,
-//!   katakana, emoji, …) falls back to the compact rendering rather than
-//!   leaving holes where missing glyphs would be.
+//! Big rendering kicks in whenever the pane is wide and tall enough to
+//! hold the full title; otherwise we fall back to a single-line compact
+//! rendering.
 //!
 //! Everything is vertically + horizontally centered inside the pane.
 
@@ -42,8 +44,9 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, snapshot: &PlayerSnapshot, them
     let album = track.album.as_ref().map(|a| a.title.clone()).unwrap_or_default();
 
     let big_w = big_title::rendered_width(&track.title);
-    let fits = inner.width >= big_w.saturating_add(2) && inner.height >= 8;
-    let use_big = fits && big_title::supports_all(&track.title);
+    // Big rendering is now safe for any character thanks to the per-char
+    // fallback in BigTitle — only size still matters.
+    let use_big = inner.width >= big_w.saturating_add(2) && inner.height >= 8;
 
     if use_big {
         render_big(frame, inner, &track.title, &artists, &album, theme);
