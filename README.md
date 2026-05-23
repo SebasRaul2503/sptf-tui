@@ -1,4 +1,4 @@
-# sptf-tui
+https://github.com/SebasRaul2503/sptf-tui# sptf-tui
 
 A modern, keyboard-driven terminal music controller for Linux. Built on top of
 **MPRIS/DBus** so it works with any compliant player (Spotify, mpv, VLC, …),
@@ -6,7 +6,9 @@ with first-class support for Spotify and in-terminal album art rendering.
 
 > **Status:** v0.1 feature-complete. All eight iterations on the roadmap
 > have landed: MPRIS, real-time sync, album art, configurable themes &
-> keybindings, mock-player test harness, and UX polish.
+> keybindings, mock-player test harness, and UX polish. Post-release polish
+> has fixed live-position updates, volume handling, and added international
+> title rendering (Spanish, Japanese, kanji, emoji).
 
 ---
 
@@ -50,18 +52,35 @@ Shipped:
 - Built-in `spotify-dark` theme.
 - **MPRIS/DBus integration** with zbus 5: player discovery, metadata parsing,
   playback control, signal-driven real-time updates (`PropertiesChanged` +
-  `NameOwnerChanged`).
+  `NameOwnerChanged`). Property cache deliberately bypassed for `Metadata`,
+  `PlaybackStatus`, `Position`, and `Volume` to avoid signal-race staleness.
 - **Interactive TUI**: now-playing pane, status icon, progress bar, volume
   slider, footer status banner, keybinding cheatsheet.
+- **Big now-playing title** with international script support — ASCII,
+  Latin-1 diacritics (`Niñas Mal`, `Café del Mar`), and hiragana
+  (`ありがとう`) render as 4×4 quadrant block glyphs; kanji, katakana,
+  emoji, and other scripts drop into the same uniform 4-cell column at
+  the terminal's native size so mixed titles like `君 feat. ARTIST` stay
+  aligned.
 - **Album cover rendering** via `ratatui-image` with automatic protocol
   selection (Kitty, iTerm2, Sixel, halfblock fallback), async fetch +
-  decode + in-memory cache.
+  decode + LRU in-memory cache (32 entries).
+- **Configurable themes** (`spotify-dark`, `gruvbox-dark`, `monochrome`)
+  and **configurable keybindings** (`[keys]` config section) with a
+  modifier-aware key string parser.
+- **Mock player backend** (`MockPlayerService`) for headless integration
+  tests.
+- **UX polish**: tiny-terminal guard, dirty-flag redraws, post-action
+  optimistic UI updates, position refresh that actually moves.
 
-Coming next:
+Looking forward (not committed):
 
-- **Configurable keybindings & themes** loaded from disk.
-- **Mock player backend** for headless tests + integration-test hardening.
-- **UX polish**: bounded LRU disk cache, loading states, smarter resize.
+- True large-font rendering of kanji / katakana (would need a 8×8 or
+  larger CJK bitmap font, ~150–250 KB).
+- Disk-persistent art cache.
+- Inline theme overrides in TOML (currently only built-in named themes).
+- Lyrics view, audio-spectrum visualizer, Discord Rich Presence,
+  Last.fm scrobbling.
 
 ## Installation
 
@@ -91,7 +110,9 @@ at runtime; non-supporting terminals get a unicode fallback.
 
 ## Keybindings
 
-Defaults — customizable in iteration 6.
+Default bindings — every action can be remapped or extended via the
+[`[keys]`](#configuration) config section. `Ctrl-C` → Quit is hard-wired
+and cannot be overridden.
 
 | Key            | Action                  |
 | -------------- | ----------------------- |
@@ -104,7 +125,7 @@ Defaults — customizable in iteration 6.
 | `-` / `_`      | Volume down             |
 | `→` / `l`      | Seek forward            |
 | `←` / `h`      | Seek backward           |
-| `r`            | Force redraw            |
+| `r`            | Force redraw / reconnect when no player |
 
 ## Configuration
 
@@ -153,12 +174,7 @@ Anything in the file can be overridden by environment variables prefixed
 | 7         | Test hardening + mock player backend   | ✅ done |
 | 8         | UX polish + documentation              | ✅ done |
 
-Long-term ideas (not committed):
-
-- Lyrics view (synced + plain)
-- Audio-spectrum visualizer
-- Discord Rich Presence
-- Last.fm scrobbling
+Long-term ideas (not committed) — see [Looking forward](#features) above.
 
 ## Contributing
 

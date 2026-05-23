@@ -66,10 +66,37 @@ to warrant it, but everything inside it still implements traits from
 
 ### `tui/`, `widgets/`, `rendering/`, `input/`
 
-Presentation. `tui::view::draw` is the *only* function that produces a frame;
-widgets are reusable building blocks called from `view`. `input` turns key
-events into typed `Action` values. `rendering` handles album-art protocol
-selection.
+Presentation. `tui::view::draw` is the *only* function that produces a
+frame; it composes a vertical layout (help bar → body → status banner) and
+delegates each pane to a free function in `widgets/`. Below the
+`MIN_USABLE_WIDTH × MIN_USABLE_HEIGHT` threshold it renders a
+"terminal too small" placeholder instead of attempting the full layout.
+
+The widgets currently shipped:
+
+- `widgets::help_bar` — top-of-screen version + key cheatsheet.
+- `widgets::album_art` — cover pane; renders the cached
+  [`StatefulProtocol`](https://docs.rs/ratatui-image) centered inside its
+  block, or a `loading…` / `no cover` placeholder.
+- `widgets::now_playing` — title (rendered via `BigTitle`) + artist +
+  album, vertically centered. Falls back to a single-line bold rendering
+  when the pane is too small.
+- `widgets::big_title` — Quadrant-resolution title renderer. Every
+  character gets a uniform 4-cell-wide × 4-cell-tall slot:
+  characters in `font8x8::{BASIC, LATIN, HIRAGANA}` are packed as 4×4
+  Unicode quadrant blocks; any other character (kanji, katakana, emoji,
+  …) is dropped into the middle of its slot at the terminal's native
+  size. This keeps mixed-script titles like `君 feat. ARTIST` aligned.
+- `widgets::controls` — status icon + identity + position/length + Gauge
+  progress bar.
+- `widgets::volume` — Gauge + percentage.
+- `widgets::banner` — footer status (connection state or current error).
+
+`input` turns key events into typed `Action` values via a
+modifier-aware key string parser, so the config file can rebind any
+action without the UI knowing the underlying key codes. `rendering`
+handles album-art protocol selection (`ratatui-image::Picker` queries the
+terminal once at startup) and owns the bounded-LRU `ArtCache`.
 
 ### `app/`
 
@@ -86,26 +113,57 @@ configuration loading.
 ## Event flow
 
 ```
-  ┌──────────┐    ┌─────────────┐    ┌─────────┐
-  │ terminal │──▶ │ EventSource │──▶ │ App     │
-  └──────────┘    │ (tokio task)│    │ on_event│
-  ┌──────────┐    │             │    │  ↓      │
-  │  tick    │──▶ │             │    │ dispatch│──▶ AppState
-  └──────────┘    │             │    │         │     ↓
-  ┌──────────┐    │             │    │         │   tui::view::draw
-  │ MPRIS    │──▶ │             │    │         │     ↓
-  │ (future) │    └─────────────┘    └─────────┘   terminal.draw()
-  └──────────┘
+  ┌──────────┐    ┌─────────────────┐    ┌─────────┐
+  │ terminal │──▶ │ spawn_input_pump│──▶ │ App     │
+  └──────────┘    │  + tick         │    │ on_event│──▶ AppState (dirty?)
+                  └─────────────────┘    │         │      │
+  ┌─────────────┐ ┌─────────────────┐    │         │      ▼
+  │ MPRIS DBus  │▶│ realtime_watcher│──▶ │         │   tui::view::draw
+  │ signals     │ │  (Properties +  │    │         │      │
+  └─────────────┘ │   NameOwner +   │    │         │      ▼
+                  │   position tick)│    │         │   terminal.draw()
+  ┌─────────────┐ └─────────────────┘    │         │
+  │ HTTP / file │ ┌─────────────────┐    │         │
+  │ art URL     │▶│ spawn_art_fetch │──▶ │         │
+  └─────────────┘ │  (one-shot)     │    │         │
+                  └─────────────────┘    └─────────┘
 ```
 
 Key properties:
 
-- A single typed `AppEvent` enum funnels every input source.
-- The render path is **pull-based**: after handling an event the loop calls
-  `terminal.draw(...)` once. There is no separate render task fighting for
-  the screen.
-- Long-running work (HTTP fetches, image decoding) runs on `tokio::spawn`
-  and posts results back through an `AppEvent` variant (added in iteration 4).
+- A single typed `AppEvent` enum (`Tick`, `Input`, `PlayerSnapshot`,
+  `PlayerError`, `ArtLoaded`, `ArtFailed`, `InputError`) funnels every
+  producer. `App` owns the only receiver; every producer task carries a
+  cloned `Sender`.
+- The render path is **pull-based** and **dirty-flag-gated**: after
+  handling an event, `terminal.draw(...)` runs only if any setter on
+  `AppState` actually changed something. Position ticks that return the
+  same value don't trigger a redraw.
+- Long-running work (HTTP fetches, image decoding) runs on
+  `tokio::spawn`. The MPRIS watcher subscribes to two DBus signal streams
+  (`PropertiesChanged` + `NameOwnerChanged`) and a low-rate position
+  ticker; album-art fetches are one-shot tasks per track change.
+- The realtime watcher refreshes the full snapshot on every
+  `PropertiesChanged`, but bypasses zbus's property cache for `Metadata`,
+  `PlaybackStatus`, `Position`, and `Volume` (see *zbus property cache*
+  below).
+
+## zbus property cache
+
+By default, `#[zbus(property)]` getters read from a cache that's updated
+when `PropertiesChanged` arrives. We mark all four observed Player
+properties with `emits_changed_signal = "false"`, so each read becomes a
+fresh `Properties.Get` call. Two reasons:
+
+1. `Position` is *spec-forbidden* from emitting `PropertiesChanged`. The
+   cache would otherwise stick at the first read and the progress bar
+   would never advance.
+2. Our `PropertiesChanged` subscriber stream races zbus's internal cache
+   updater. Without bypassing the cache, `metadata()` after a track
+   change might return the *previous* track — and the UI never updates.
+
+The extra ~4 DBus round-trips per refresh are negligible at
+signal-driven cadence.
 
 ## Logging
 

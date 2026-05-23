@@ -72,22 +72,25 @@ SPTF_LOG=sptf_tui=debug,zbus=warn cargo run
 
 ```
 src/
-├── app/             Composition root + event loop
+├── app/             Composition root + event loop + AppEvent channel
 ├── cli.rs           clap CLI definition
-├── config/          XDG-aware layered configuration
+├── config/          XDG-aware layered configuration (file + env)
 ├── core/            Errors + logging (cross-cutting)
 ├── domain/          Pure value types (Track, PlaybackState, …)
-├── infrastructure/  Adapters to DBus / HTTP / FS (impls of services traits)
-├── input/           Key events → typed Actions
-├── mpris/           MPRIS-specific adapters
-├── rendering/       Image / album-art rendering
-├── services/        Trait definitions (PlayerService, …)
+├── infrastructure/  Adapters to external systems (currently empty;
+│                    HTTP album-art fetch lives in rendering/)
+├── input/           Key events → typed Actions, modifier-aware parser
+├── mpris/           zbus proxies, discovery, parser, signal-driven service
+├── rendering/       ArtCache (LRU) + async loader + ratatui-image picker
+├── services/        Trait definitions (PlayerService) + MockPlayerService
 ├── state/           AppState — the single source of truth for the UI
-├── tui/             ratatui setup + view rendering + theme
+├── tui/             setup_terminal + tui::view::draw + theme registry
 ├── utils/           Small helpers shared across modules
-└── widgets/         Reusable widgets
+└── widgets/         help_bar, now_playing, big_title, album_art,
+                     controls, volume, banner
 
 docs/                Project documentation
+examples/            Reference config.toml
 tests/               Integration tests
 ```
 
@@ -108,7 +111,8 @@ tests/               Integration tests
 
 - **Don't log to stderr in the render path.** It will tear the alt-screen.
   Use `tracing` so logs go to the file appender.
-- **Don't block in the event loop.** Spawn tokio tasks and send results via
-  `AppEvent` (added in iteration 4).
+- **Don't block in the event loop.** Spawn tokio tasks and send results
+  back through an `AppEvent` variant — see `app/events.rs` for the
+  channel design.
 - **Don't put DBus types in `domain/`.** That layer is pure; convert at the
   service boundary.
